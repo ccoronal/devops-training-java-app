@@ -11,6 +11,7 @@ pipeline {
   agent any
 
   stages {
+    // stage test
     stage('Test') {
       /*
         `agent` dentro de un stage permite que SOLO ese stage se ejecute en un contexto concreto.
@@ -27,5 +28,20 @@ pipeline {
         sh 'echo "Stage dummy. En la Practica 2 ejecutaras aqui los tests unitarios."'
       }
     }
+    // STAGES DE EJERCICIOS
+    // practica 2.1
+    stage('Info') {
+        agent {
+            docker {
+                image 'maven:3.8.6-openjdk-11-slim'
+            }
+        }
+        steps {
+            sh 'mvn -version'
+            sh 'echo "Job: ${env.JOB_NAME}"'
+            sh 'echo "Build: ${env.BUILD_NUMBER}"'
+        }
+    }
+    // final del bloque de stages
   }
 }
