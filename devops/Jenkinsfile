@@ -1,31 +1,194 @@
-/*
-  Practica 2 - Jenkinsfile dummy (PUNTO DE PARTIDA)
+@Library('iac-devops-lib') _
 
-  Este Jenkinsfile es intencionalmente simple. En la Practica 2 iras anadiendo
-  piezas (stages, agents, funciones Groovy, Docker build, docker compose, etc.)
-  hasta construir un pipeline CI/CD completo.
+/*
+  Import de libreria compartida en Jenkins:
+  1) Manage Jenkins -> System -> Global Trusted Pipeline Libraries.
+  2) Name: iac-devops-lib
+  3) Default version: feat/base (o la rama que corresponda).
+  4) Retrieval method: Modern SCM -> Git
+     URL: https://github.com/contreras-adr/devops-training-iac-devops.git
+  5) Library Path:
+     - `groovy` si usas `groovy/vars/devopsLib.groovy`
 */
 
 pipeline {
-  // `agent any` = el pipeline se ejecuta en cualquier nodo/agente disponible.
-  agent any
+    agent any
 
-  stages {
-    stage('Test') {
-      /*
-        `agent` dentro de un stage permite que SOLO ese stage se ejecute en un contexto concreto.
-        En este caso, usamos Docker como capa de virtualizacion: los comandos se ejecutan dentro
-        de un contenedor temporal.
-      */
-      agent {
-        docker {
-          image 'maven:3.8.6-openjdk-11-slim'
-        }
-      }
-      steps {
-        sh 'mvn -version'
-        sh 'echo "Stage dummy. En la Practica 2 ejecutaras aqui los tests unitarios."'
-      }
+    options {
+        timestamps()
+        disableConcurrentBuilds()
     }
-  }
+
+    parameters {
+        booleanParam(name: 'RUN_CD', defaultValue: false, description: 'Ejecutar CD')
+        booleanParam(name: 'ENABLE_REGISTRY_PUSH', defaultValue: false, description: 'Publicar imagen en local-registry')
+        booleanParam(name: 'ENABLE_ARTIFACTORY_UPLOAD', defaultValue: false, description: 'Subir JAR a Artifactory')
+    }
+
+    environment {
+        IMAGE_REPO = 'scalian_training-java-hello-world'
+        APP_URL = 'http://localhost:8084/hello'
+        COMPOSE_FILE = 'docker-compose.yml'
+        COMPOSE_SERVICE = 'app'
+        REGISTRY = 'local-registry:5000'
+        REGISTRY_REPO = 'scalian_training-java-hello-world'
+        REGISTRY_CREDS_ID = 'local-registry-creds'
+        ARTIFACTORY_URL = 'http://artifactory:8081/artifactory'
+        ARTIFACTORY_REPO = 'libs-release-local'
+        ARTIFACTORY_CREDS_ID = 'artifactory-creds'
+    }
+
+    stages {
+        stage('Info') {
+            steps {
+                echo "Job: ${env.JOB_NAME}"
+                echo "Build: ${env.BUILD_NUMBER}"
+                echo "Branch: ${env.BRANCH_NAME}"
+            }
+        }
+
+        stage('Init - Versionado') {
+            steps {
+                script {
+                    env.IMAGE_VERSION = devopsLib.readVersion('VERSION')
+                    env.VERSION_JAR = "${env.IMAGE_VERSION}-SNAPSHOT"
+                    env.IMAGE_NAME = "${env.IMAGE_REPO}:${env.IMAGE_VERSION}"
+                    env.CI_IMAGE_NAME = "java-ci-tools:${env.BUILD_NUMBER}"
+                    echo "Imagen seleccionada: ${env.IMAGE_NAME}"
+                    echo "Imagen CI: ${env.CI_IMAGE_NAME}"
+                    echo "Version JAR para build args: ${env.VERSION_JAR}"
+                }
+            }
+        }
+
+        stage('CI - Build tools image') {
+            steps {
+                script {
+                    docker.build(env.CI_IMAGE_NAME, "-f devops/ci.Dockerfile .")
+                }
+            }
+        }
+
+        stage('CI - Lint') {
+            steps {
+                script {
+                    devopsLib.runInDocker(env.CI_IMAGE_NAME) {
+                        sh 'make lint'
+                    }
+                }
+            }
+        }
+
+        stage('CI - Test') {
+            steps {
+                script {
+                    devopsLib.runInDocker(env.CI_IMAGE_NAME) {
+                        sh 'make test'
+                    }
+                }
+            }
+        }
+
+        stage('CI - Build image') {
+            steps {
+                script {
+                    docker.build(env.IMAGE_NAME, "--build-arg VERSION=${env.VERSION_JAR} -f devops/Dockerfile .")
+                }
+            }
+        }
+
+        stage('CI - Upload jar (opcional)') {
+            when {
+                expression { return params.ENABLE_ARTIFACTORY_UPLOAD }
+            }
+            steps {
+                script {
+                    devopsLib.runInDocker(env.CI_IMAGE_NAME) {
+                        sh 'mvn -q -DskipTests package'
+                    }
+                    withCredentials([usernamePassword(
+                            credentialsId: env.ARTIFACTORY_CREDS_ID,
+                            usernameVariable: 'ART_USER',
+                            passwordVariable: 'ART_PASS'
+                    )]) {
+                        sh '''
+              JAR_FILE=$(ls target/*.jar | head -n 1)
+              ART_PATH="devops-training-java-app/${BUILD_NUMBER}"
+              curl -u "${ART_USER}:${ART_PASS}" -T "${JAR_FILE}" \
+                "${ARTIFACTORY_URL}/${ARTIFACTORY_REPO}/${ART_PATH}/$(basename ${JAR_FILE})"
+            '''
+                    }
+                }
+            }
+        }
+
+        stage('CI - Push image (opcional)') {
+            when {
+                expression { return params.ENABLE_REGISTRY_PUSH }
+            }
+            steps {
+                script {
+                    String registryImage = "${env.REGISTRY}/${env.REGISTRY_REPO}:${env.IMAGE_VERSION}"
+                    withCredentials([usernamePassword(
+                            credentialsId: env.REGISTRY_CREDS_ID,
+                            usernameVariable: 'REG_USER',
+                            passwordVariable: 'REG_PASS'
+                    )]) {
+                        sh """
+              echo "\$REG_PASS" | docker login ${env.REGISTRY} -u "\$REG_USER" --password-stdin
+              docker tag ${env.IMAGE_NAME} ${registryImage}
+              docker push ${registryImage}
+            """
+                    }
+                }
+            }
+        }
+
+        stage('CD') {
+            when {
+                anyOf {
+                    expression { return params.RUN_CD }
+                    branch 'develop'
+                    branch 'master'
+                }
+            }
+            steps {
+                script {
+                    env.DEPLOY_ENV = (env.BRANCH_NAME == 'master') ? 'PRO' : 'DEV'
+                    env.COMPOSE_PROJECT = env.DEPLOY_ENV.toLowerCase()
+                    echo "Deploying to ${env.DEPLOY_ENV}"
+
+                    devopsLib.setComposeServiceImage(
+                            composeFile: env.COMPOSE_FILE,
+                            serviceName: env.COMPOSE_SERVICE,
+                            image: env.IMAGE_NAME
+                    )
+
+                    devopsLib.composeUpTestDown(
+                            up: "docker compose -p ${env.COMPOSE_PROJECT} up -d app",
+                            test: "sleep 5 && docker compose -p ${env.COMPOSE_PROJECT} logs app",
+                            down: "docker compose -p ${env.COMPOSE_PROJECT} down --volumes"
+                    )
+                }
+            }
+            post {
+                always {
+                    sh "docker rmi ${env.IMAGE_NAME} || true"
+                }
+                success {
+                    echo 'SUCCESS'
+                }
+                failure {
+                    echo 'FAILURE'
+                    sh "docker compose -p ${env.COMPOSE_PROJECT} logs || true"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh '[ -n "${CI_IMAGE_NAME}" ] && docker rmi "${CI_IMAGE_NAME}" || true'
+        }
+    }
 }
