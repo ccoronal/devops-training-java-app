@@ -15,6 +15,11 @@ pipeline {
         }
         // ejercicio 2.2 + 2.3
         stage('CI - Lint') {
+            agent {
+                docker {
+                    image 'maven:3.8.6-openjdk-11-slim'
+                }
+            }
             steps {
                 sh 'make lint'
             }
