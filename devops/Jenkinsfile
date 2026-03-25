@@ -1,10 +1,15 @@
+// FUNCIONES
+def runInDocker(String image, Closure body) {
+    docker.image(image).inside { body() }
+}
+
+// PIPELINE
 pipeline {
 
     agent any
 
     stages {
 
-        // ejercicio 2.1
         stage('Info') {
             steps {
                 echo "2.1 Info"
@@ -13,27 +18,31 @@ pipeline {
                 echo "Branch: ${env.BRANCH_NAME}"
             }
         }
-        // ejercicio 2.2 + 2.3
-        stage('CI - Lint') {
-            agent {
-                docker {
-                    image 'maven:3.8.6-openjdk-11-slim'
+
+        stage('CI - Build tools image') {
+            steps {
+                script {
+                    docker.build(env.CI_IMAGE_NAME, "-f devops/ci.Dockerfile .")
                 }
             }
-            steps {
-                sh 'make lint'
+        }
+
+        stage('CI - Lint') {
+            script {
+                devopsLib.runInDocker(env.CI_IMAGE_NAME) {
+                    sh 'make lint'
+                }
             }
         }
 
         stage('CI - Test') {
-            agent {
-                docker {
-                    image 'maven:3.8.6-openjdk-11-slim'
-                }
-            }
             steps {
-                echo "2.2 Unit test"
-                sh 'mvn test'
+                script {
+                    devopsLib.runInDocker(env.CI_IMAGE_NAME) {
+                        sh 'mvn test'
+                        sh 'make test'
+                    }
+                }
             }
         }
         // final del bloque de stages
