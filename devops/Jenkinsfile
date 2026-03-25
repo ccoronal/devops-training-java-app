@@ -12,7 +12,7 @@ pipeline {
 
         stage('Info') {
             steps {
-                echo "2.1 Info"
+                echo "Info"
                 echo "Job: ${env.JOB_NAME}"
                 echo "Build: ${env.BUILD_NUMBER}"
                 echo "Branch: ${env.BRANCH_NAME}"
@@ -39,7 +39,7 @@ pipeline {
             steps {
                 script {
                     devopsLib.runInDocker(env.CI_IMAGE_NAME) {
-                        sh 'mvn test'
+                        echo "Unit test"
                         sh 'make test'
                     }
                 }
