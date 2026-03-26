@@ -1,6 +1,8 @@
 // FUNCIONES
-def runInDocker(String image, Closure pipeline) {
-    docker.image(image).inside { pipeline() }
+def runInDocker(String image, Closure body) {
+    docker.image(image).inside {
+        body()
+    }
 }
 
 // PIPELINE
