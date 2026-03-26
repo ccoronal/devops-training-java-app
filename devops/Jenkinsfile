@@ -1,6 +1,8 @@
 // FUNCIONES
 def runInDocker(String image, Closure body) {
-    docker.image(image).inside { body() }
+    docker.image(image).inside {
+        body()
+    }
 }
 
 // PIPELINE
@@ -28,9 +30,11 @@ pipeline {
         }
 
         stage('CI - Lint') {
-            script {
-                devopsLib.runInDocker(env.CI_IMAGE_NAME) {
-                    sh 'make lint'
+            steps {
+                script {
+                    devopsLib.runInDocker(env.CI_IMAGE_NAME) {
+                        sh 'make lint'
+                    }
                 }
             }
         }
