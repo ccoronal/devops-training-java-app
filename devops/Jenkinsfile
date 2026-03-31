@@ -78,7 +78,7 @@ pipeline {
                 }
             }
         }
-
+        /*
         stage('CI - Build image') {
             steps {
                 script {
@@ -127,6 +127,7 @@ pipeline {
                 }
             }
         }
+         */
         // final del bloque de stages
     }
 }
