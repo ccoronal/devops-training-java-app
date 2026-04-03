@@ -59,7 +59,7 @@ pipeline {
                 }
             }
         }
-        */
+
         stage('CI - Lint') {
             steps {
                 script {
@@ -129,7 +129,7 @@ pipeline {
                 }
             }
         }
-
+         */
         // final del bloque de stages
     }
 }
