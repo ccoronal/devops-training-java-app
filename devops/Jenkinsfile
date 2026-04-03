@@ -1,4 +1,6 @@
 // FUNCIONES
+import jenkins.model.*
+
 def runInDocker(String image, Closure body) {
     docker.image(image).inside {
         body()
@@ -35,7 +37,7 @@ pipeline {
                 echo "Branch: ${env.BRANCH_NAME}"
             }
         }
-        /*
+
         stage('Init - Versionado') {
             steps {
                 script {
@@ -57,7 +59,7 @@ pipeline {
                 }
             }
         }
-        */
+
         stage('CI - Lint') {
             steps {
                 script {
