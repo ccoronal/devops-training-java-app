@@ -37,7 +37,7 @@ pipeline {
                 echo "Branch: ${env.BRANCH_NAME}"
             }
         }
-        /*
+
         stage('Init - Versionado') {
             steps {
                 script {
@@ -129,7 +129,7 @@ pipeline {
                 }
             }
         }
-         */
+
         // final del bloque de stages
     }
 }
