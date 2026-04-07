@@ -1,14 +1,5 @@
-// FUNCIONES
 @Library('iac-devops-lib') _
-/*
-import jenkins.model.*
 
-def runInDocker(String image, Closure body) {
-    docker.image(image).inside {
-        body()
-    }
-}
-*/
 // PIPELINE
 pipeline {
 
@@ -82,7 +73,7 @@ pipeline {
                 }
             }
         }
-        /*
+
         stage('CI - Build image') {
             steps {
                 script {
@@ -90,7 +81,7 @@ pipeline {
                 }
             }
         }
-
+        /*
         stage('CD') {
             when {
                 anyOf {
