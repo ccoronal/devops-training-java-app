@@ -23,11 +23,11 @@ on:
         default: false
 
 env:
-  IMAGE_REPO: ${{ vars.JAVA_IMAGE_REPO }}
-  REGISTRY_HOST: ${{ vars.REGISTRY_HOST }}
-  REGISTRY_REPO: ${{ vars.REGISTRY_REPO }}
-  ARTIFACTORY_URL: ${{ vars.ARTIFACTORY_URL }}
-  ARTIFACTORY_REPO: ${{ vars.ARTIFACTORY_REPO }}
+  IMAGE_REPO: 'ccoronal/devops-training-java-app'
+  REGISTRY_HOST: 'local-registry:5000'
+  REGISTRY_REPO: 'ccoronal/devops-training-java-app'
+  ARTIFACTORY_URL: 'http://artifactory:8081/artifactory'
+  ARTIFACTORY_REPO: libs-release-local
   COMPOSE_FILE: docker-compose.yml
   COMPOSE_SERVICE: app
 
