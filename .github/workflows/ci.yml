@@ -63,23 +63,6 @@ jobs:
       - name: CI - Build image
         run: docker build -t "${IMAGE_NAME}" --build-arg VERSION="${VERSION_JAR}" -f devops/Dockerfile .
 
-      - name: CI - Upload jar (optional)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.ENABLE_ARTIFACTORY_UPLOAD == true }}
-        run: |
-          docker run --rm -v "${GITHUB_WORKSPACE}:/app" -w /app "${CI_IMAGE}" sh -lc \
-            "mvn -q -DskipTests package"
-          JAR_FILE=$(ls target/*.jar | head -n 1)
-          curl -u "${{ secrets.ARTIFACTORY_USER }}:${{ secrets.ARTIFACTORY_PASSWORD }}" \
-            -T "${JAR_FILE}" \
-            "${ARTIFACTORY_URL}/${ARTIFACTORY_REPO}/${ARTIFACTORY_PATH}/$(basename ${JAR_FILE})"
-
-      - name: CI - Push image (optional)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.ENABLE_REGISTRY_PUSH == true }}
-        run: |
-          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login "${REGISTRY_HOST}" -u "${{ secrets.REGISTRY_USER }}" --password-stdin
-          docker tag "${IMAGE_NAME}" "${REGISTRY_IMAGE}"
-          docker push "${REGISTRY_IMAGE}"
-
   cd:
     needs: ci
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.RUN_CD == true || github.ref_name == 'develop' || github.ref_name == 'master' }}
